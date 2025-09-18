@@ -1,0 +1,139 @@
+name: Terraform CI/CD
+ 
+on:
+
+  push:
+
+    branches: [ main ] # Run only on main branch
+
+  pull_request:
+
+    branches: [ main ]
+ 
+jobs:
+
+  terraform:
+
+    name: Terraform Pipeline
+
+    runs-on: ubuntu-latest
+ 
+    env:
+
+      TF_LOG: INFO
+
+      TF_IN_AUTOMATION: true
+ 
+    steps:
+
+      # 1️⃣ Checkout repository code
+
+      - name: Checkout Code
+
+        uses: actions/checkout@v4
+ 
+      # 2️⃣ Setup Terraform
+
+      - name: Setup Terraform
+
+        uses: hashicorp/setup-terraform@v3
+
+        with:
+
+          terraform_version: 1.9.5 # choose version you use locally
+ 
+      # 3️⃣ Terraform Init
+
+      - name: Terraform Init
+
+        run: terraform init
+ 
+      # 4️⃣ Terraform Format Check
+
+      - name: Terraform Format
+
+        run: terraform fmt -check
+ 
+      # 5️⃣ Terraform Validate
+
+      - name: Terraform Validate
+
+        run: terraform validate
+ 
+      # 6️⃣ Terraform Plan
+
+      - name: Terraform Plan
+
+        run: terraform plan -out=tfplan
+ 
+      # 7️⃣ Upload Plan as Artifact (so we can review before apply)
+
+      - name: Upload Terraform Plan
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: terraform-plan
+
+          path: tfplan
+ 
+  # Manual Approval before Apply
+
+  manual-approval:
+
+    name: Wait for Manual Approval
+
+    needs: terraform
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Wait for approval
+
+        uses: hmarr/auto-approve-action@v2
+
+        if: github.event_name == 'workflow_dispatch'
+ 
+  terraform-apply:
+
+    name: Terraform Apply
+
+    needs: manual-approval
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Code
+
+        uses: actions/checkout@v4
+ 
+      - name: Setup Terraform
+
+        uses: hashicorp/setup-terraform@v3
+
+        with:
+
+          terraform_version: 1.9.5
+ 
+      - name: Terraform Init
+
+        run: terraform init
+ 
+      - name: Download Plan
+
+        uses: actions/download-artifact@v4
+
+        with:
+
+          name: terraform-plan
+
+          path: .
+ 
+      - name: Terraform Apply
+
+        run: terraform apply -auto-approve tfplan
+
+ 
